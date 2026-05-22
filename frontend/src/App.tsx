@@ -3,7 +3,6 @@ import { Sidebar, Conversation } from './components/Sidebar.tsx';
 import { ChatWindow, Message } from './components/ChatWindow.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { MessageSquare, BarChart2, Radio, Server } from 'lucide-react';
-import { API_BASE } from './config';
 
 function App() {
   const [view, setView] = useState<'chat' | 'stats'>('chat');
@@ -17,7 +16,7 @@ function App() {
 
   const fetchConversations = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/chat/conversations`);
+      const res = await fetch('/api/chat/conversations');
       const data = await res.json();
       setConversations(data);
       
@@ -37,7 +36,7 @@ function App() {
   const handleSelectConversation = async (id: string) => {
     setActiveConversationId(id);
     try {
-      const res = await fetch(`${API_BASE}/api/chat/conversations/${id}`);
+      const res = await fetch(`/api/chat/conversations/${id}`);
       const data = await res.json();
       setMessages(data.messages || []);
     } catch (e) {
@@ -47,7 +46,7 @@ function App() {
 
   const handleCreateConversation = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/chat/conversations`, {
+      const res = await fetch('/api/chat/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: `Session #${conversations.length + 1}` }),
@@ -66,7 +65,7 @@ function App() {
   const handleDeleteConversation = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`${API_BASE}/api/chat/conversations/${id}`, {
+      await fetch(`/api/chat/conversations/${id}`, {
         method: 'DELETE',
       });
       
@@ -126,8 +125,8 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            <Server size={14} color={API_BASE ? "#a78bfa" : "#10b981"} />
-            <span>{API_BASE ? `Remote API: ${API_BASE}` : 'Local API Active'}</span>
+            <Server size={14} color="#10b981" />
+            <span>Local API Active</span>
           </div>
         </header>
 

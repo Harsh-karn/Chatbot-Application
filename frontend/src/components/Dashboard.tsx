@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   Activity, 
   Clock, 
+  Terminal, 
   AlertTriangle, 
   Search, 
   X, 
   RefreshCw, 
+  FileText, 
+  Cpu, 
+  Sliders, 
+  Percent, 
   Flame 
 } from 'lucide-react';
 
@@ -148,6 +153,21 @@ export const Dashboard: React.FC = () => {
       </div>
     );
   };
+
+  // Timeline SVG line path charts for P95 latency trend
+  const timelinePoints = stats.timelinePoints || [];
+  const maxTimelineLatency = Math.max(...timelinePoints.map(p => p.latencyMs), 1);
+  const chartWidth = 500;
+  const chartHeight = 150;
+
+  let pointsString = '';
+  if (timelinePoints.length > 1) {
+    pointsString = timelinePoints.map((point, index) => {
+      const x = (index / (timelinePoints.length - 1)) * (chartWidth - 40) + 20;
+      const y = chartHeight - ((point.latencyMs / maxTimelineLatency) * (chartHeight - 40) + 20);
+      return `${x},${y}`;
+    }).join(' ');
+  }
 
   return (
     <div className="dashboard-container">

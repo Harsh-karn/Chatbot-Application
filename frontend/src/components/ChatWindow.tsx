@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, Sparkles, Bot, User } from 'lucide-react';
-import { API_BASE } from '../config';
+import { Send, Square, Sparkles, AlertCircle, Bot, User } from 'lucide-react';
 
 export interface Message {
   id: string;
@@ -50,7 +49,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     // Call cancel endpoint on backend to update database and terminate logging gracefully
     if (activeConversationId) {
       try {
-        await fetch(`${API_BASE}/api/chat/conversations/${activeConversationId}/cancel`, {
+        await fetch(`/api/chat/conversations/${activeConversationId}/cancel`, {
           method: 'POST',
         });
         
@@ -97,7 +96,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     abortControllerRef.current = controller;
 
     try {
-      const response = await fetch(`${API_BASE}/api/chat/message/stream`, {
+      const response = await fetch('/api/chat/message/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
