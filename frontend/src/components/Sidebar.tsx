@@ -25,7 +25,6 @@ interface SidebarProps {
 const PROVIDERS = [
   { id: 'google', name: 'Google Gemini' },
   { id: 'openai', name: 'OpenAI GPT' },
-  { id: 'anthropic', name: 'Anthropic Claude' },
   { id: 'deepseek', name: 'DeepSeek AI' },
 ];
 
@@ -38,9 +37,6 @@ const MODELS: Record<string, { id: string; name: string }[]> = {
   openai: [
     { id: 'gpt-4o', name: 'GPT-4o (Live)' },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Live)' },
-  ],
-  anthropic: [
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet (Simulated)' },
   ],
   deepseek: [
     { id: 'deepseek-chat', name: 'DeepSeek Chat (Live)' },
