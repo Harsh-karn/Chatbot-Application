@@ -1,0 +1,50 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Conversation {
+  id        String         @id @default(uuid())
+  title     String
+  status    String         @default("active") // "active" or "cancelled"
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  messages  Message[]
+  logs      InferenceLog[]
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // "user", "assistant"
+  content        String
+  createdAt      DateTime     @default(now())
+}
+
+model InferenceLog {
+  id               String       @id // Unique UUID supplied by SDK
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  model            String
+  provider         String
+  latencyMs        Int
+  promptTokens     Int
+  completionTokens Int
+  totalTokens      Int
+  tokensPerSecond  Float        // Speed throughput: (completionTokens / (latencyMs / 1000))
+  status           String       // "success", "error", "cancelled"
+  errorMessage     String?
+  inputPreview     String       // PII Redacted user prompt
+  outputPreview    String?      // PII Redacted model response
+  timestamp        DateTime
+  metadata         String?      // Optional JSON blob for custom metadata configs (JSONB fallback for SQLite)
+
+  @@index([timestamp])
+  @@index([model])
+  @@index([provider])
+}

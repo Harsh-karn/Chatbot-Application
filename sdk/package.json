@@ -1,0 +1,14 @@
+{
+  "name": "llm-inference-sdk",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "npx -p typescript tsc",
+    "dev": "npx -p typescript tsc --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
