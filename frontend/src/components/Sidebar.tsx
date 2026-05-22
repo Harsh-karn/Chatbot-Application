@@ -36,13 +36,15 @@ const MODELS: Record<string, { id: string; name: string }[]> = {
     { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
   ],
   openai: [
-    { id: 'gpt-4o', name: 'GPT-4o (Simulated)' },
+    { id: 'gpt-4o', name: 'GPT-4o (Live)' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini (Live)' },
   ],
   anthropic: [
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet (Simulated)' },
   ],
   deepseek: [
-    { id: 'deepseek-coder', name: 'DeepSeek Coder V2' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat (Live)' },
+    { id: 'deepseek-coder', name: 'DeepSeek Coder (Live)' },
   ],
 };
 

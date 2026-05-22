@@ -223,9 +223,27 @@ router.post('/message/stream', async (req, res) => {
   req.on('close', handleCancel);
   res.on('close', handleCancel);
 
-  // Check if native Google Gemini is requested and API key is loaded
+  // 4. Retrieve recent conversation history context (limit to last 10 messages for short conversational context)
+  let historyMessages: any[] = [];
+  try {
+    historyMessages = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+    });
+  } catch (err) {
+    console.error('Failed to fetch message history context:', err);
+  }
+
+  // Retrieve credentials from environment
   const geminiKey = process.env.GEMINI_API_KEY;
   const isGeminiAvailable = geminiKey && geminiKey !== 'YOUR_GEMINI_API_KEY' && geminiKey.trim().length > 10;
+
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const isOpenAIAvailable = openaiKey && openaiKey !== 'YOUR_OPENAI_API_KEY_OPTIONAL' && openaiKey.trim().length > 10;
+
+  const deepseekKey = process.env.DEEPSEEK_API_KEY;
+  const isDeepSeekAvailable = deepseekKey && deepseekKey !== 'YOUR_DEEPSEEK_API_KEY_OPTIONAL' && deepseekKey.trim().length > 10;
 
   if (provider === 'google' && isGeminiAvailable) {
     try {
@@ -236,11 +254,20 @@ router.post('/message/stream', async (req, res) => {
       }
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?key=${geminiKey}`;
       
+      // Build context history for Gemini REST format
+      const contents = historyMessages.map((msg) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+      }));
+      if (contents.length === 0) {
+        contents.push({ role: 'user', parts: [{ text: message }] });
+      }
+
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: message }] }],
+          contents,
           generationConfig: {
             maxOutputTokens: 1000,
           }
@@ -317,6 +344,165 @@ router.post('/message/stream', async (req, res) => {
       }
     } catch (err: any) {
       console.error('[Gemini Route Error]:', err);
+      if (!isClosed) {
+        res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+        await closeStream('error', err);
+      }
+    }
+  } else if (provider === 'openai' && isOpenAIAvailable) {
+    try {
+      // Build context history for OpenAI format
+      const formattedMessages = historyMessages.map((msg) => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content
+      }));
+      if (formattedMessages.length === 0) {
+        formattedMessages.push({ role: 'user', content: message });
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiKey}`
+        },
+        body: JSON.stringify({
+          model: model || 'gpt-4o',
+          messages: formattedMessages,
+          stream: true,
+          max_tokens: 1000
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API responded with status: ${response.status} - ${errorText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Failed to get OpenAI stream reader.');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (isClosed) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        let lineEndIdx;
+        while ((lineEndIdx = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.substring(0, lineEndIdx).trim();
+          buffer = buffer.substring(lineEndIdx + 1);
+
+          if (line.startsWith('data: ')) {
+            const dataStr = line.substring(6).trim();
+            if (dataStr === '[DONE]') {
+              break;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              const contentText = parsed.choices?.[0]?.delta?.content;
+              if (contentText) {
+                currentText += contentText;
+                tracker.appendChunk(contentText);
+                res.write(`data: ${JSON.stringify({ text: contentText })}\n\n`);
+              }
+            } catch (e) {
+              // Wait for more data chunks
+            }
+          }
+        }
+      }
+
+      if (!isClosed) {
+        await closeStream('complete');
+      }
+    } catch (err: any) {
+      console.error('[OpenAI Route Error]:', err);
+      if (!isClosed) {
+        res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
+        await closeStream('error', err);
+      }
+    }
+  } else if (provider === 'deepseek' && isDeepSeekAvailable) {
+    try {
+      // Build context history for OpenAI/DeepSeek format
+      const formattedMessages = historyMessages.map((msg) => ({
+        role: msg.role === 'assistant' ? 'assistant' : 'user',
+        content: msg.content
+      }));
+      if (formattedMessages.length === 0) {
+        formattedMessages.push({ role: 'user', content: message });
+      }
+
+      // Map model target
+      const targetModel = model === 'deepseek-coder' ? 'deepseek-coder' : (model || 'deepseek-chat');
+
+      const response = await fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${deepseekKey}`
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages: formattedMessages,
+          stream: true,
+          max_tokens: 1000
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`DeepSeek API responded with status: ${response.status} - ${errorText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('Failed to get DeepSeek stream reader.');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (isClosed) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        let lineEndIdx;
+        while ((lineEndIdx = buffer.indexOf('\n')) !== -1) {
+          const line = buffer.substring(0, lineEndIdx).trim();
+          buffer = buffer.substring(lineEndIdx + 1);
+
+          if (line.startsWith('data: ')) {
+            const dataStr = line.substring(6).trim();
+            if (dataStr === '[DONE]') {
+              break;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              const contentText = parsed.choices?.[0]?.delta?.content;
+              if (contentText) {
+                currentText += contentText;
+                tracker.appendChunk(contentText);
+                res.write(`data: ${JSON.stringify({ text: contentText })}\n\n`);
+              }
+            } catch (e) {
+              // Wait for more chunks
+            }
+          }
+        }
+      }
+
+      if (!isClosed) {
+        await closeStream('complete');
+      }
+    } catch (err: any) {
+      console.error('[DeepSeek Route Error]:', err);
       if (!isClosed) {
         res.write(`event: error\ndata: ${JSON.stringify({ error: err.message })}\n\n`);
         await closeStream('error', err);
